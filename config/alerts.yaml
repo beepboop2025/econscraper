@@ -1,0 +1,15 @@
+telegram:
+  enabled: true
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  chat_id: "${TELEGRAM_CHAT_ID}"
+
+alerts:
+  on_broken: true
+  on_structure_change: true
+  on_stale_data: true
+  on_new_opportunity: false
+
+schedule:
+  quick_check_hours: 6
+  deep_check_time: "07:00"  # IST
+  report_retention_days: 90
