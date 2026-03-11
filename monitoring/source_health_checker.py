@@ -57,7 +57,6 @@ RSS_FEEDS = {
 
 def _parse_date_fuzzy(text: str) -> datetime | None:
     """Try common date formats found on Indian financial sites."""
-    import re as _re
     patterns = [
         (r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", "%d/%m/%Y"),
         (r"(\d{4})[/-](\d{1,2})[/-](\d{1,2})", "%Y-%m-%d"),
@@ -65,10 +64,13 @@ def _parse_date_fuzzy(text: str) -> datetime | None:
     ]
     # Try explicit patterns first
     for pat, fmt in patterns:
-        m = _re.search(pat, text)
+        m = re.search(pat, text)
         if m and fmt:
             try:
-                raw = m.group().replace("-", "/")
+                if fmt == "%d/%m/%Y":
+                    raw = m.group().replace("-", "/")
+                else:
+                    raw = m.group()
                 return datetime.strptime(raw, fmt).replace(tzinfo=IST)
             except ValueError:
                 continue
@@ -225,8 +227,12 @@ async def check_ccil(client: httpx.AsyncClient) -> HealthCheckResult:
                 if last_date is None or parsed > last_date:
                     last_date = parsed
 
-        if _is_weekday_stale(last_date, max_days=3):
-            notes_parts.append(f"Latest rate date may be stale: {last_date.date() if last_date else 'not found'}")
+        if last_date is None:
+            notes_parts.append("Could not find any rate date on the page")
+            if status == HealthStatus.HEALTHY:
+                status = HealthStatus.WARNING
+        elif _is_weekday_stale(last_date, max_days=3):
+            notes_parts.append(f"Latest rate date is stale: {last_date.date()}")
             if status == HealthStatus.HEALTHY:
                 status = HealthStatus.WARNING
 
@@ -262,8 +268,11 @@ async def check_fred(client: httpx.AsyncClient) -> HealthCheckResult:
         import os
         api_key = os.environ.get("FRED_API_KEY", "")
         if api_key:
-            api_url = f"https://api.stlouisfed.org/fred/series?series_id=GDP&api_key={api_key}&file_type=json"
-            api_resp = await client.get(api_url, follow_redirects=True)
+            api_resp = await client.get(
+                "https://api.stlouisfed.org/fred/series",
+                params={"series_id": "GDP", "api_key": api_key, "file_type": "json"},
+                follow_redirects=True,
+            )
 
             # Check for deprecation headers
             deprecation_headers = ["deprecation", "sunset", "x-deprecation"]
@@ -442,6 +451,7 @@ async def check_single_rss(client: httpx.AsyncClient, name: str, url: str) -> He
     structure_match = True
     last_date = None
 
+    items = []
     try:
         resp = await client.get(url, follow_redirects=True)
         elapsed = (time.monotonic() - t0) * 1000
@@ -489,7 +499,7 @@ async def check_single_rss(client: httpx.AsyncClient, name: str, url: str) -> He
                             status = HealthStatus.WARNING
 
         if not notes_parts:
-            notes_parts.append(f"OK — {len(items) if 'items' in dir() else '?'} entries")
+            notes_parts.append(f"OK — {len(items)} entries")
         return HealthCheckResult(f"RSS: {name}", status, elapsed, last_date, structure_match,
                                  "; ".join(notes_parts))
     except httpx.TimeoutException:

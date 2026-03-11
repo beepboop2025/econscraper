@@ -315,6 +315,9 @@ async def update_baseline(source_name: str | None = None) -> list[str]:
     Update baselines by fetching current structure.
     If source_name is None, update all baselines.
     """
+    if source_name and source_name not in SOURCE_CONFIGS and source_name != "rss_feeds":
+        return [f"ERROR: Unknown source '{source_name}'"]
+
     updated: list[str] = []
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT), follow_redirects=True) as client:
@@ -358,6 +361,9 @@ async def update_baseline(source_name: str | None = None) -> list[str]:
                 except Exception as e:
                     updated.append(f"  FAIL RSS: {name}: {e}")
 
-            _save_baseline("rss_feeds", rss_baseline)
+            if rss_baseline["feeds"]:
+                _save_baseline("rss_feeds", rss_baseline)
+            else:
+                updated.append("  SKIP RSS baselines: all feeds failed")
 
     return updated

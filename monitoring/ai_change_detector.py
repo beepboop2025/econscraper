@@ -45,8 +45,11 @@ async def analyze_changes(
     Returns a formatted report with actionable recommendations.
     """
     problems = [r for r in results if r.status != HealthStatus.HEALTHY]
+    has_validation_issues = validation_results and any(
+        not match for _, match, _ in validation_results
+    )
 
-    if not problems and not validation_results:
+    if not problems and not has_validation_issues:
         healthy_count = len(results)
         return (
             f"# EconScraper Health Report — {datetime.now(IST).strftime('%Y-%m-%d %H:%M IST')}\n\n"
@@ -131,9 +134,10 @@ End with: IMMEDIATE ACTIONS, WATCH LIST, and NEW OPPORTUNITIES sections."""
             f"## Structural Changes\n{validation_text}"
         )
 
-    # Prepend header
+    # Prepend header — strip any existing #-based headers from the AI response first
+    import re as _re_local
+    report = _re_local.sub(r"^#+ .*\n*", "", report, count=1).lstrip("\n")
     header = f"# EconScraper Health Report — {datetime.now(IST).strftime('%Y-%m-%d %H:%M IST')}\n\n"
-    if not report.startswith("# "):
-        report = header + report
+    report = header + report
 
     return report

@@ -112,8 +112,7 @@ def start_scheduler() -> None:
 
     def _shutdown(sig, frame):
         print("\nScheduler shutting down...")
-        loop.stop()
-        sys.exit(0)
+        loop.call_soon_threadsafe(loop.stop)
 
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
@@ -135,13 +134,27 @@ def _get_celery_app():
         return None
 
 
-celery_app = _get_celery_app()
+_celery_app = None
+_celery_tasks_registered = False
 
-if celery_app:
-    @celery_app.task(name="monitoring.quick_health_check")
-    def celery_quick_check():
-        asyncio.run(run_quick_check())
 
-    @celery_app.task(name="monitoring.deep_health_check")
-    def celery_deep_check():
-        asyncio.run(run_deep_check())
+def _ensure_celery_tasks():
+    """Lazily initialize celery app and register tasks."""
+    global _celery_app, _celery_tasks_registered
+    if _celery_tasks_registered:
+        return _celery_app
+    _celery_tasks_registered = True
+    _celery_app = _get_celery_app()
+    if _celery_app:
+        @_celery_app.task(name="monitoring.quick_health_check")
+        def celery_quick_check():
+            asyncio.run(run_quick_check())
+
+        @_celery_app.task(name="monitoring.deep_health_check")
+        def celery_deep_check():
+            asyncio.run(run_deep_check())
+    return _celery_app
+
+
+if __name__ == "__main__":
+    _ensure_celery_tasks()

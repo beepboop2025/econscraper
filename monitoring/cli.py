@@ -23,18 +23,20 @@ def cmd_check(args: argparse.Namespace) -> None:
     if args.quick:
         print("Running quick health check (HTTP reachability only)...\n")
         results = asyncio.run(quick_check_all_sources())
+        print(format_results_table(results))
     else:
         print("Running full health check...\n")
-        results = asyncio.run(check_all_sources())
-
-    print(format_results_table(results))
-
-    # If full check, also run structure validation
-    if not args.quick:
         from monitoring.structure_validator import validate_all
 
+        async def _full_check():
+            results = await check_all_sources()
+            validation = await validate_all()
+            return results, validation
+
+        results, validation = asyncio.run(_full_check())
+        print(format_results_table(results))
+
         print("\nStructure validation against baselines:")
-        validation = asyncio.run(validate_all())
         for name, match, diffs in validation:
             status = "\033[92mOK\033[0m" if match else "\033[93mCHANGED\033[0m"
             print(f"  {status:>16}  {name}")
@@ -48,15 +50,16 @@ def cmd_report(args: argparse.Namespace) -> None:
     from monitoring.ai_change_detector import analyze_changes
     from monitoring.structure_validator import validate_all
 
-    print("Running full health check...")
-    results = asyncio.run(check_all_sources())
+    async def _full_report():
+        results = await check_all_sources()
+        validation = await validate_all()
+        report = await analyze_changes(results, validation)
+        return results, validation, report
+
+    print("Running full health check + structure validation + AI analysis...")
+    print("(this may take a minute)\n")
+    results, validation, report = asyncio.run(_full_report())
     print(format_results_table(results))
-
-    print("Running structure validation...")
-    validation = asyncio.run(validate_all())
-
-    print("Generating AI analysis report (this may take a minute)...\n")
-    report = asyncio.run(analyze_changes(results, validation))
 
     # Save report
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
