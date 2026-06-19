@@ -41,7 +41,7 @@
 ### Installation
 
 ```bash
-git clone https://github.com/your-username/econscraper.git
+git clone https://github.com/beepboop2025/econscraper.git
 cd econscraper
 pip install -r requirements.txt
 ```
