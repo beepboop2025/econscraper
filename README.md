@@ -1,3 +1,8 @@
+<!-- textura-banner -->
+<div align="center">
+  <a href="https://github.com/beepboop2025/econscraper"><img src="./banner.svg" width="100%" alt="econscraper" /></a>
+</div>
+
 # EconScraper
 
 **Source health monitoring for economic data pipelines.** Continuously validates the availability, structure, and freshness of financial data sources across Indian and global markets.
